@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini文本处理器 (Web版)</title>
+    <style>
+        body {
+            font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f0f2f6;
+            display: flex;
+            justify-content: center;
+            padding-top: 30px;
+            padding-bottom: 30px;
+            margin: 0;
+            color: #31333F;
+        }
+        .container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 800px;
+            max-width: 95%;
+        }
+        h1 { margin-top: 0; margin-bottom: 1.5rem; font-size: 1.8rem; }
+        
+        /* 输入/输出区域 */
+        label { font-weight: bold; display: block; margin-bottom: 0.5rem; margin-top: 1rem; }
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #d6d6d6;
+            border-radius: 4px;
+            font-family: monospace;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+
+        /* 规则管理区域 */
+        .rules-panel {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 1rem 0;
+        }
+        .rules-header { font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #ddd; padding-bottom: 5px; }
+        
+        /* 规则列表 */
+        .rule-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; min-height: 30px;}
+        .rule-tag {
+            background-color: #e6f3ff;
+            border: 1px solid #b3d7ff;
+            color: #0056b3;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            font-family: monospace;
+            transition: all 0.2s;
+        }
+        .rule-tag.is-regex {
+            background-color: #fff0b3;
+            border-color: #ffe066;
+            color: #856404;
+        }
+        .rule-type { margin-right: 6px; font-weight: bold; font-size: 0.75rem; text-transform: uppercase; opacity: 0.7;}
+        .rule-val { margin-right: 8px; font-weight: 600; }
+        .rule-close { cursor: pointer; font-weight: bold; color: inherit; opacity: 0.6; padding: 0 4px; }
+        .rule-close:hover { opacity: 1; transform: scale(1.2); }
+
+        /* 添加规则表单 */
+        .add-rule-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        input[type="text"] { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; }
+        select { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+        
+        /* 按钮样式 */
+        .btn {
+            padding: 6px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s;
+        }
+        .btn-add { background-color: #007bff; color: white; }
+        .btn-add:hover { background-color: #0069d9; }
+        .btn-process { background-color: #ff4b4b; color: white; padding: 10px 20px; width: 100%; margin-top: 10px; font-size: 1.1rem; }
+        .btn-process:hover { background-color: #d93e3e; }
+
+        /* 快捷勾选区域 */
+        .quick-checkboxes { margin-top: 10px; font-size: 0.9rem; display: flex; gap: 15px; align-items: center; }
+        .quick-checkboxes label { margin: 0; font-weight: normal; cursor: pointer; display: flex; align-items: center; }
+        .quick-checkboxes input { margin-right: 5px; transform: scale(1.2); }
+
+        /* 状态提示 */
+        .status-box { padding: 10px; border-radius: 4px; margin-top: 10px; display: none; text-align: center;}
+        .success { background-color: #d4edda; color: #155724; }
+        .error { background-color: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Gemini 文本处理器 (Web版)</h1>
+
+    <textarea id="rawText" rows="6" placeholder="请在此粘贴文本..."></textarea>
+
+    <!-- 规则控制面板 -->
+    <div class="rules-panel">
+        <div class="rules-header">当前生效的删除规则：</div>
+        
+        <!-- 动态规则列表 -->
+        <div id="ruleContainer" class="rule-list">
+            <!-- 规则将通过JS插入这里 -->
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid #e9ecef; margin: 10px 0;">
+
+        <!-- 自定义添加 -->
+        <div class="add-rule-form">
+            <input type="text" id="newPattern" placeholder="输入要删除的内容或正则" style="flex-grow: 1;">
+            <select id="newType">
+                <option value="text">普通文本</option>
+                <option value="regex">正则表达式</option>
+            </select>
+            <button class="btn btn-add" onclick="addCustomRule()">添加规则</button>
+        </div>
+
+        <!-- 快捷勾选 -->
+        <div class="quick-checkboxes">
+            <span style="font-weight: bold; color: #666;">快捷添加:</span>
+            
+            <label title="正则: ^#+\s (匹配行首的一个或多个#号加空格)">
+                <!-- 注意：这里的 pattern 参数传入了转义后的正则字符串 -->
+                <input type="checkbox" id="cb_headings" onchange="toggleQuickRule('^#+\\s', 'regex', this.checked)"> 
+                Markdown 标题 (#, ##, ###... + 空格)
+            </label>
+        </div>
+    </div>
+
+    <button class="btn btn-process" onclick="processText()">删除指定字符并复制到剪贴板</button>
+    <div id="statusMessage" class="status-box"></div>
+
+    <label for="processedText">处理结果：</label>
+    <textarea id="processedText" rows="6" readonly></textarea>
+</div>
+
+<script>
+    // --- 数据状态 ---
+    // 默认规则
+    let rules = [
+        { pattern: "**", type: "text" },                // 原逻辑1
+        { pattern: "^\\s*[\\r\\n]+", type: "regex" },   // 原逻辑2 (空行)
+        { pattern: ".\\.", type: "regex" }              // 原逻辑3 (任意字符+点)
+    ];
+
+    // --- 初始化 ---
+    document.addEventListener('DOMContentLoaded', () => {
+        renderRules();
+    });
+
+    // --- 核心逻辑：渲染规则列表 ---
+    function renderRules() {
+        const container = document.getElementById('ruleContainer');
+        container.innerHTML = ''; // 清空
+
+        // 检查快捷复选框状态并更新UI (反向同步)
+        // 这里的 pattern 要和 checkbox 里传的一模一样
+        updateCheckboxState('^#+\\s', 'cb_headings', 'regex');
+
+        rules.forEach((rule, index) => {
+            const div = document.createElement('div');
+            // 根据类型加不同样式
+            div.className = rule.type === 'regex' ? 'rule-tag is-regex' : 'rule-tag';
+            
+            // 界面友好化显示
+            let displayVal = rule.pattern;
+            if (displayVal === "^\\s*[\\r\\n]+") displayVal = "[空行]";
+            if (displayVal === "^#+\\s") displayVal = "Markdown标题 (#+空格)";
+            
+            div.innerHTML = `
+                <span class="rule-type">${rule.type === 'regex' ? 'Regex' : 'Text'}</span>
+                <span class="rule-val">${escapeHtml(displayVal)}</span>
+                <span class="rule-close" onclick="removeRule(${index})" title="删除此规则">×</span>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    // --- 核心逻辑：添加规则 ---
+    function addRule(pattern, type) {
+        if (!pattern) return;
+        
+        // 查重：避免重复添加完全相同的规则
+        const exists = rules.some(r => r.pattern === pattern && r.type === type);
+        if (!exists) {
+            rules.push({ pattern, type });
+            renderRules();
+        }
+    }
+
+    // 手动添加按钮触发
+    function addCustomRule() {
+        const input = document.getElementById('newPattern');
+        const typeSelect = document.getElementById('newType');
+        const pattern = input.value;
+        
+        if (!pattern) {
+            alert("请输入内容");
+            return;
+        }
+
+        addRule(pattern, typeSelect.value);
+        input.value = ''; // 清空输入框
+    }
+
+    // 快捷复选框触发 (更新了这里，支持传入 type)
+    function toggleQuickRule(pattern, type, isChecked) {
+        if (isChecked) {
+            addRule(pattern, type);
+        } else {
+            // 找到并删除这个规则
+            rules = rules.filter(r => !(r.pattern === pattern && r.type === type));
+            renderRules();
+        }
+    }
+
+    // --- 核心逻辑：删除规则 ---
+    function removeRule(index) {
+        rules.splice(index, 1);
+        renderRules();
+    }
+
+    // 辅助：更新复选框UI状态
+    function updateCheckboxState(pattern, elementId, type) {
+        const exists = rules.some(r => r.pattern === pattern && r.type === type);
+        const el = document.getElementById(elementId);
+        if(el) el.checked = exists;
+    }
+
+    // --- 核心逻辑：执行处理 ---
+    function processText() {
+        const rawInput = document.getElementById('rawText').value;
+        const statusBox = document.getElementById('statusMessage');
+        
+        statusBox.style.display = 'none';
+
+        if (!rawInput) {
+            showStatus("请输入需要处理的文本。", "error");
+            return;
+        }
+
+        try {
+            let processed = rawInput;
+
+            // 遍历所有规则进行替换
+            rules.forEach(rule => {
+                if (rule.type === 'text') {
+                    // 普通文本替换：使用 split + join
+                    processed = processed.split(rule.pattern).join('');
+                } else if (rule.type === 'regex') {
+                    // 正则替换：自动添加 'g' (全局) 和 'm' (多行) 标志
+                    // 'm' 标志让 ^ 可以匹配每一行的开头
+                    try {
+                        const regex = new RegExp(rule.pattern, 'gm');
+                        processed = processed.replace(regex, '');
+                    } catch (err) {
+                        console.error("正则错误:", rule.pattern);
+                    }
+                }
+            });
+
+            // 输出结果
+            document.getElementById('processedText').value = processed;
+            
+            // 复制
+            copyToClipboard(processed);
+
+        } catch (e) {
+            showStatus("处理错误: " + e.message, "error");
+        }
+    }
+
+    // --- 工具函数 ---
+    
+    // HTML转义
+    function escapeHtml(text) {
+        const map = {
+            '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+        };
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    function showStatus(msg, type) {
+        const el = document.getElementById('statusMessage');
+        el.textContent = msg;
+        el.className = 'status-box ' + type;
+        el.style.display = 'block';
+    }
+
+    function copyToClipboard(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => {
+                showStatus("成功！已处理并复制到剪贴板。", "success");
+            });
+        } else {
+            const output = document.getElementById('processedText');
+            output.select();
+            document.execCommand('copy');
+            showStatus("成功！已处理并复制到剪贴板。", "success");
+        }
+    }
+</script>
+
+</body>
+</html>
