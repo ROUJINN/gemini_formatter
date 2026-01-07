@@ -86,9 +86,10 @@
         .btn-process:hover { background-color: #d93e3e; }
 
         /* 快捷勾选区域 */
-        .quick-checkboxes { margin-top: 10px; font-size: 0.9rem; display: flex; gap: 15px; align-items: center; }
-        .quick-checkboxes label { margin: 0; font-weight: normal; cursor: pointer; display: flex; align-items: center; }
-        .quick-checkboxes input { margin-right: 5px; transform: scale(1.2); }
+        .quick-checkboxes { margin-top: 15px; font-size: 0.9rem; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        .quick-checkboxes label { margin: 0; font-weight: normal; cursor: pointer; display: flex; align-items: center; background: white; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;}
+        .quick-checkboxes label:hover { background-color: #f0f0f0; }
+        .quick-checkboxes input { margin-right: 6px; transform: scale(1.1); }
 
         /* 状态提示 */
         .status-box { padding: 10px; border-radius: 4px; margin-top: 10px; display: none; text-align: center;}
@@ -126,12 +127,26 @@
 
         <!-- 快捷勾选 -->
         <div class="quick-checkboxes">
-            <span style="font-weight: bold; color: #666;">快捷添加:</span>
+            <span style="font-weight: bold; color: #666; width: 100%; margin-bottom: 5px;">快捷开关 (默认全开):</span>
             
-            <label title="正则: ^#+\s (匹配行首的一个或多个#号加空格)">
-                <!-- 注意：这里的 pattern 参数传入了转义后的正则字符串 -->
+            <label title="删除 Markdown 加粗符号 (**)">
+                <input type="checkbox" id="cb_bold" onchange="toggleQuickRule('**', 'text', this.checked)"> 
+                MD加粗 (**)
+            </label>
+
+            <label title="删除空行 (正则: ^\s*[\r\n]+)">
+                <input type="checkbox" id="cb_empty" onchange="toggleQuickRule('^\\s*[\\r\\n]+', 'regex', this.checked)"> 
+                删除空行
+            </label>
+
+            <label title="删除 Markdown 标题符号 (正则: ^#+\s)">
                 <input type="checkbox" id="cb_headings" onchange="toggleQuickRule('^#+\\s', 'regex', this.checked)"> 
-                Markdown 标题 (#, ##, ###... + 空格)
+                MD标题 (#)
+            </label>
+
+            <label title="删除 Markdown 数字列表 (正则: ^\s*\d+\.\s+)">
+                <input type="checkbox" id="cb_numbering" onchange="toggleQuickRule('^\\s*\\d+\\.\\s+', 'regex', this.checked)"> 
+                MD列表 (1.)
             </label>
         </div>
     </div>
@@ -145,11 +160,12 @@
 
 <script>
     // --- 数据状态 ---
-    // 默认规则
+    // 默认启用4个规则
     let rules = [
-        { pattern: "**", type: "text" },                // 原逻辑1
-        { pattern: "^\\s*[\\r\\n]+", type: "regex" },   // 原逻辑2 (空行)
-        { pattern: ".\\.", type: "regex" }              // 原逻辑3 (任意字符+点)
+        { pattern: "**", type: "text" },                                // 1. 加粗
+        { pattern: "^\\s*[\\r\\n]+", type: "regex" },                   // 2. 空行
+        { pattern: "^#+\\s", type: "regex" },                           // 3. 标题
+        { pattern: "^\\s*\\d+\\.\\s+", type: "regex" }                  // 4. 数字列表
     ];
 
     // --- 初始化 ---
@@ -162,19 +178,22 @@
         const container = document.getElementById('ruleContainer');
         container.innerHTML = ''; // 清空
 
-        // 检查快捷复选框状态并更新UI (反向同步)
-        // 这里的 pattern 要和 checkbox 里传的一模一样
+        // 同步所有快捷复选框的状态 (反向绑定)
+        updateCheckboxState('**', 'cb_bold', 'text');
+        updateCheckboxState('^\\s*[\\r\\n]+', 'cb_empty', 'regex');
         updateCheckboxState('^#+\\s', 'cb_headings', 'regex');
+        updateCheckboxState('^\\s*\\d+\\.\\s+', 'cb_numbering', 'regex');
 
         rules.forEach((rule, index) => {
             const div = document.createElement('div');
-            // 根据类型加不同样式
             div.className = rule.type === 'regex' ? 'rule-tag is-regex' : 'rule-tag';
             
             // 界面友好化显示
             let displayVal = rule.pattern;
             if (displayVal === "^\\s*[\\r\\n]+") displayVal = "[空行]";
-            if (displayVal === "^#+\\s") displayVal = "Markdown标题 (#+空格)";
+            if (displayVal === "^#+\\s") displayVal = "[MD标题 #]";
+            if (displayVal === "^\\s*\\d+\\.\\s+") displayVal = "[MD列表 1.]";
+            if (displayVal === "**") displayVal = "[MD加粗 **]";
             
             div.innerHTML = `
                 <span class="rule-type">${rule.type === 'regex' ? 'Regex' : 'Text'}</span>
@@ -189,7 +208,6 @@
     function addRule(pattern, type) {
         if (!pattern) return;
         
-        // 查重：避免重复添加完全相同的规则
         const exists = rules.some(r => r.pattern === pattern && r.type === type);
         if (!exists) {
             rules.push({ pattern, type });
@@ -209,15 +227,14 @@
         }
 
         addRule(pattern, typeSelect.value);
-        input.value = ''; // 清空输入框
+        input.value = ''; 
     }
 
-    // 快捷复选框触发 (更新了这里，支持传入 type)
+    // 快捷复选框触发
     function toggleQuickRule(pattern, type, isChecked) {
         if (isChecked) {
             addRule(pattern, type);
         } else {
-            // 找到并删除这个规则
             rules = rules.filter(r => !(r.pattern === pattern && r.type === type));
             renderRules();
         }
@@ -251,14 +268,10 @@
         try {
             let processed = rawInput;
 
-            // 遍历所有规则进行替换
             rules.forEach(rule => {
                 if (rule.type === 'text') {
-                    // 普通文本替换：使用 split + join
                     processed = processed.split(rule.pattern).join('');
                 } else if (rule.type === 'regex') {
-                    // 正则替换：自动添加 'g' (全局) 和 'm' (多行) 标志
-                    // 'm' 标志让 ^ 可以匹配每一行的开头
                     try {
                         const regex = new RegExp(rule.pattern, 'gm');
                         processed = processed.replace(regex, '');
@@ -268,10 +281,7 @@
                 }
             });
 
-            // 输出结果
             document.getElementById('processedText').value = processed;
-            
-            // 复制
             copyToClipboard(processed);
 
         } catch (e) {
@@ -280,8 +290,6 @@
     }
 
     // --- 工具函数 ---
-    
-    // HTML转义
     function escapeHtml(text) {
         const map = {
             '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
