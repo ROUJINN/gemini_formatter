@@ -148,6 +148,13 @@
                 <input type="checkbox" id="cb_numbering" onchange="toggleQuickRule('^\\s*\\d+\\.\\s+', 'regex', this.checked)"> 
                 MD列表 (1.)
             </label>
+            
+            <!--  ===== 新增的HTML部分 ===== -->
+            <label title="删除 Markdown 分隔符 (---)">
+                <input type="checkbox" id="cb_separator" onchange="toggleQuickRule('---', 'text', this.checked)"> 
+                MD分隔符 (---)
+            </label>
+            <!--  ========================= -->
         </div>
     </div>
 
@@ -160,12 +167,12 @@
 
 <script>
     // --- 数据状态 ---
-    // 默认启用4个规则
     let rules = [
         { pattern: "**", type: "text" },                                // 1. 加粗
         { pattern: "^\\s*[\\r\\n]+", type: "regex" },                   // 2. 空行
         { pattern: "^#+\\s", type: "regex" },                           // 3. 标题
-        { pattern: "^\\s*\\d+\\.\\s+", type: "regex" }                  // 4. 数字列表
+        { pattern: "^\\s*\\d+\\.\\s+", type: "regex" },                 // 4. 数字列表
+        { pattern: "---", type: "text" }                                // 5. ===== 新增的默认规则 =====
     ];
 
     // --- 初始化 ---
@@ -183,6 +190,7 @@
         updateCheckboxState('^\\s*[\\r\\n]+', 'cb_empty', 'regex');
         updateCheckboxState('^#+\\s', 'cb_headings', 'regex');
         updateCheckboxState('^\\s*\\d+\\.\\s+', 'cb_numbering', 'regex');
+        updateCheckboxState('---', 'cb_separator', 'text'); // ===== 新增的JS同步代码 =====
 
         rules.forEach((rule, index) => {
             const div = document.createElement('div');
@@ -194,6 +202,7 @@
             if (displayVal === "^#+\\s") displayVal = "[MD标题 #]";
             if (displayVal === "^\\s*\\d+\\.\\s+") displayVal = "[MD列表 1.]";
             if (displayVal === "**") displayVal = "[MD加粗 **]";
+            if (displayVal === "---") displayVal = "[MD分隔符 ---]";
             
             div.innerHTML = `
                 <span class="rule-type">${rule.type === 'regex' ? 'Regex' : 'Text'}</span>
